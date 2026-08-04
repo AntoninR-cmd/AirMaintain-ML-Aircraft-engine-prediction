@@ -7,6 +7,10 @@ from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import root_mean_squared_error, mean_absolute_error
+from time import perf_counter
 
 
 FEATURE_COLUMNS = [
@@ -171,11 +175,134 @@ def split(test):
 
     return X_test, y_test, X_val, y_val
 
-test = import_X_test_val()
-test = import_y_test_val(test)
 
-X_test, y_test, X_val, y_val = split(test)
+def train_val(name, model, X_train, y_train, X_val, y_val):
+    debut = perf_counter()
 
-X_train, y_train = import_train()
+    model.fit(X_train, y_train)
 
-print(X_test, y_test, X_val, y_val)
+    temps_entrainement = perf_counter() - debut
+
+    debut_prediction = perf_counter()
+    y_pred = model.predict(X_val)
+    temps_prediction = perf_counter() - debut_prediction
+
+    return {
+        "Modèle": name,
+        "RMSE": root_mean_squared_error(y_val, y_pred),
+        "MAE": mean_absolute_error(y_val, y_pred),
+        "Temps entraînement": temps_entrainement,
+        "Temps prédiction": temps_prediction
+    }
+    
+
+
+def main():   
+    test = import_X_test_val()
+    test = import_y_test_val(test)
+
+    X_test, y_test, X_val, y_val = split(test)
+
+    X_train, y_train = import_train()
+
+    models = {
+        "LinearRegression": LinearRegression(),
+
+        "Ridge": make_pipeline(
+            StandardScaler(),
+            Ridge(alpha=1.0)
+        ),
+
+        "Lasso": make_pipeline(
+            StandardScaler(),
+            Lasso(
+                alpha=0.01,
+                max_iter=10_000,
+                selection="random",
+                random_state=42
+            )
+        ),
+
+        "DecisionTree": DecisionTreeRegressor(
+            max_depth=15,
+            min_samples_leaf=5,
+            random_state=42
+        ),
+
+        "RandomForest": RandomForestRegressor(
+            n_estimators=100,
+            max_depth=20,
+            min_samples_leaf=3,
+            n_jobs=-1,
+            random_state=42
+        ),
+
+        "GradientBoosting": GradientBoostingRegressor(
+            n_estimators=100,
+            learning_rate=0.05,
+            max_depth=3,
+            random_state=42
+        ),
+
+        "HistGradientBoosting": HistGradientBoostingRegressor(
+            max_iter=200,
+            learning_rate=0.05,
+            max_leaf_nodes=31,
+            min_samples_leaf=20,
+            early_stopping=True,
+            random_state=42
+        ),
+
+        "SVR": make_pipeline(
+            StandardScaler(),
+            SVR(
+                kernel="rbf",
+                C=10,
+                epsilon=5,
+                gamma="scale",
+                cache_size=1000
+            )
+        ),
+
+        "KNN": make_pipeline(
+            StandardScaler(),
+            KNeighborsRegressor(
+                n_neighbors=10,
+                weights="distance",
+                n_jobs=-1
+            )
+        ),
+
+        "MLP": make_pipeline(
+            StandardScaler(),
+            MLPRegressor(
+                hidden_layer_sizes=(64, 32),
+                max_iter=500,
+                early_stopping=True,
+                n_iter_no_change=15,
+                random_state=42
+            )
+        )
+    }
+
+    resultats = []
+    for name, model in models.items():
+        print(f"Entraînement de {name}...")
+
+        resultat = train_val(
+            name,
+            model,
+            X_train,
+            y_train,
+            X_val,
+            y_val
+        )
+
+        resultats.append(resultat)
+
+    resultats = pd.DataFrame(resultats)
+    resultats = resultats.sort_values("RMSE")
+
+    print(resultats.to_string(index=False))
+
+main()
