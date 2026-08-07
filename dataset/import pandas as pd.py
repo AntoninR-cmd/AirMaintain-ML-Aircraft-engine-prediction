@@ -13,15 +13,25 @@ from sklearn.metrics import root_mean_squared_error, mean_absolute_error
 from time import perf_counter
 
 
-FEATURE_COLUMNS = [
+SENSOR_COLUMNS = [
+    f"MesureCapteur{i:02d}"
+    for i in range(1, 22)
+]
+
+BASE_FEATURE_COLUMNS = [
     "Cycle",
     "ParameterOpe1",
     "ParameterOpe2",
     "ParameterOpe3",
-    *[f"MesureCapteur{i:02d}" for i in range(1, 22)]
+    *SENSOR_COLUMNS
 ]
 
-COLUMNS = ["IdMoteur", *FEATURE_COLUMNS]
+COLUMNS = [
+    "IdMoteur",
+    *BASE_FEATURE_COLUMNS
+]
+
+WINDOWS = (5, 20)
 
 DATASET_FOLDER = Path(
     r"C:\Users\Antonin\Mon Drive\AirMaintain"
@@ -29,21 +39,125 @@ DATASET_FOLDER = Path(
 )
 
 
+def get_temporal_feature_columns(windows):
+    temporal_columns = []
+
+    long_window = max(windows)
+
+    for sensor in SENSOR_COLUMNS:
+        temporal_columns.append(
+            f"{sensor}_delta1"
+        )
+
+        for window in windows:
+            temporal_columns.append(
+                f"{sensor}_mean_{window}"
+            )
+            temporal_columns.append(
+                f"{sensor}_std_{window}"
+            )
+
+        temporal_columns.append(
+            f"{sensor}_trend_{long_window}"
+        )
+
+    return temporal_columns
+
+
+TEMPORAL_FEATURE_COLUMNS = get_temporal_feature_columns(
+    WINDOWS
+)
+
+MODEL_FEATURE_COLUMNS = (
+    BASE_FEATURE_COLUMNS
+    + TEMPORAL_FEATURE_COLUMNS
+)
+
+def add_temporal_features(df, windows=(5, 20)):
+    """
+    Crée des caractéristiques temporelles en utilisant uniquement
+    le cycle actuel et les cycles précédents du même moteur.
+    """
+
+    df = df.sort_values(
+        ["FD", "IdMoteur", "Cycle"]
+    ).copy()
+
+    grouped = df.groupby(
+        ["FD", "IdMoteur"],
+        sort=False
+    )
+
+    new_features = {}
+
+    for sensor in SENSOR_COLUMNS:
+        # Variation depuis le cycle précédent
+        new_features[f"{sensor}_delta1"] = (
+            grouped[sensor]
+            .diff()
+            .fillna(0)
+        )
+
+        for window in windows:
+            # Moyenne mobile
+            new_features[f"{sensor}_mean_{window}"] = (
+                grouped[sensor]
+                .transform(
+                    lambda serie: serie.rolling(
+                        window=window,
+                        min_periods=1
+                    ).mean()
+                )
+            )
+
+            # Écart-type mobile
+            new_features[f"{sensor}_std_{window}"] = (
+                grouped[sensor]
+                .transform(
+                    lambda serie: serie.rolling(
+                        window=window,
+                        min_periods=2
+                    ).std(ddof=0)
+                )
+                .fillna(0)
+            )
+
+        # Tendance approximative sur la plus grande fenêtre
+        long_window = max(windows)
+
+        new_features[f"{sensor}_trend_{long_window}"] = (
+            grouped[sensor]
+            .diff(long_window - 1)
+            .div(long_window - 1)
+            .fillna(0)
+        )
+
+    temporal_df = pd.DataFrame(
+        new_features,
+        index=df.index
+    )
+
+    return pd.concat(
+        [df, temporal_df],
+        axis=1
+    )
+
+
 def import_train():
-
     folder = DATASET_FOLDER / "train"
-
     dataframes = []
-    for file in folder.iterdir():
+
+    for file in sorted(folder.glob("train_FD*.txt")):
         fd = file.stem[-3:]
 
-        train_file = pd.read_csv(file, sep=r"\s+", header=None, names=COLUMNS)
-
-        train_file['RUL'] = (
-            train_file.groupby('IdMoteur')['Cycle'].transform('max') - train_file['Cycle']
+        train_file = pd.read_csv(
+            file,
+            sep=r"\s+",
+            header=None,
+            names=COLUMNS
         )
-        train_file['FD'] = fd
 
+        train_file["FD"] = fd
         dataframes.append(train_file)
 
     if not dataframes:
@@ -51,31 +165,61 @@ def import_train():
             f"Aucun fichier d'entraînement trouvé dans {folder}"
         )
 
-    train = pd.concat(dataframes, ignore_index=True)
+    train = pd.concat(
+        dataframes,
+        ignore_index=True
+    )
 
-    X_train = train[FEATURE_COLUMNS]
-    y_train = train["RUL"]
+    train["RUL"] = (
+        train.groupby(
+            ["FD", "IdMoteur"]
+        )["Cycle"].transform("max")
+        - train["Cycle"]
+    )
+
+    train = add_temporal_features(
+        train,
+        windows=WINDOWS
+    )
+
+    X_train = train[
+        MODEL_FEATURE_COLUMNS
+    ].copy()
+
+    y_train = train["RUL"].copy()
 
     return X_train, y_train
 
 
 def import_X_test_val():
     folder = DATASET_FOLDER / "X_test"
-    
-    dataframe = []
-    for file in folder.iterdir():
-        test_file = pd.read_csv(file, sep=r"\s+", header=None, names=COLUMNS)
+    dataframes = []
 
-        test_file['FD'] = file.stem[-3:]
+    for file in sorted(folder.glob("test_FD*.txt")):
+        test_file = pd.read_csv(
+            file,
+            sep=r"\s+",
+            header=None,
+            names=COLUMNS
+        )
 
-        dataframe.append(test_file)
+        test_file["FD"] = file.stem[-3:]
+        dataframes.append(test_file)
 
-    if not dataframe:
+    if not dataframes:
         raise FileNotFoundError(
             f"Aucun fichier trouvé dans {folder}"
         )
 
-    test = pd.concat(dataframe, ignore_index=True)
+    test = pd.concat(
+        dataframes,
+        ignore_index=True
+    )
+
+    test = add_temporal_features(
+        test,
+        windows=WINDOWS
+    )
 
     return test
 
@@ -127,7 +271,9 @@ def import_y_test_val(test):
     return test
 
 def split(test):
-    moteurs = test[["IdMoteur", "FD"]].drop_duplicates()
+    moteurs = test[
+        ["FD", "IdMoteur"]
+    ].drop_duplicates()
 
     moteurs_test, moteurs_validation = train_test_split(
         moteurs,
@@ -137,41 +283,52 @@ def split(test):
     )
 
     test_final = test.merge(
-        moteurs_test, 
-        on=["FD", "IdMoteur"],
-        how="inner", 
-        validate="many_to_one"
-    )
-
-    validation = test.merge(
-        moteurs_validation, 
+        moteurs_test,
         on=["FD", "IdMoteur"],
         how="inner",
         validate="many_to_one"
     )
 
-    feature_columns = [
-        "Cycle",
-        "ParameterOpe1",
-        "ParameterOpe2",
-        "ParameterOpe3",
-        *[f"MesureCapteur{i:02d}" for i in range(1, 22)]
-    ]
-
-    X_test = test_final[feature_columns]
-    y_test = test_final["RUL"]
-    X_val = validation[feature_columns]
-    y_val = validation["RUL"]
+    validation = test.merge(
+        moteurs_validation,
+        on=["FD", "IdMoteur"],
+        how="inner",
+        validate="many_to_one"
+    )
 
     cles_test = set(
-        map(tuple, test_final[["FD", "IdMoteur"]].drop_duplicates().to_numpy())
+        map(
+            tuple,
+            test_final[
+                ["FD", "IdMoteur"]
+            ].drop_duplicates().to_numpy()
+        )
     )
 
     cles_validation = set(
-        map(tuple, validation[["FD", "IdMoteur"]].drop_duplicates().to_numpy())
+        map(
+            tuple,
+            validation[
+                ["FD", "IdMoteur"]
+            ].drop_duplicates().to_numpy()
+        )
     )
 
-    assert cles_test.isdisjoint(cles_validation)
+    assert cles_test.isdisjoint(
+        cles_validation
+    )
+
+    X_test = test_final[
+        MODEL_FEATURE_COLUMNS
+    ].copy()
+
+    y_test = test_final["RUL"].copy()
+
+    X_val = validation[
+        MODEL_FEATURE_COLUMNS
+    ].copy()
+
+    y_val = validation["RUL"].copy()
 
     return X_test, y_test, X_val, y_val
 
@@ -197,13 +354,21 @@ def train_val(name, model, X_train, y_train, X_val, y_val):
     
 
 
-def main():   
+def main():
     test = import_X_test_val()
     test = import_y_test_val(test)
 
     X_test, y_test, X_val, y_val = split(test)
 
     X_train, y_train = import_train()
+
+    print("Dimensions :")
+    print("X_train :", X_train.shape)
+    print("X_val   :", X_val.shape)
+    print("X_test  :", X_test.shape)
+
+    assert list(X_train.columns) == list(X_val.columns)
+    assert list(X_train.columns) == list(X_test.columns)
 
     models = {
         "LinearRegression": LinearRegression(),
@@ -260,7 +425,7 @@ def main():
                 C=10,
                 epsilon=5,
                 gamma="scale",
-                cache_size=1000
+                cache_size=4000
             )
         ),
 
