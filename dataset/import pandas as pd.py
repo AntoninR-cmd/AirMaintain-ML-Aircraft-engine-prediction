@@ -706,23 +706,8 @@ def calibration_by_wear(
     return resultats
 
 
-def main():
-    test = import_X_test_val()
-    test = import_y_test_val(test)
-
-    X_test, y_test, X_val, y_val = split(test)
-
-    X_train, y_train = import_train()
-
-    print("Dimensions :")
-    print("X_train :", X_train.shape)
-    print("X_val   :", X_val.shape)
-    print("X_test  :", X_test.shape)
-
-    assert list(X_train.columns) == list(X_val.columns)
-    assert list(X_train.columns) == list(X_test.columns)
-
-    models = {
+def create_models():
+    return {
         "LinearRegression": LinearRegression(),
 
         "Ridge": make_pipeline(
@@ -801,6 +786,25 @@ def main():
             )
         )
     }
+
+
+def main():
+    test = import_X_test_val()
+    test = import_y_test_val(test)
+
+    X_test, y_test, X_val, y_val = split(test)
+
+    X_train, y_train = import_train()
+
+    print("Dimensions :")
+    print("X_train :", X_train.shape)
+    print("X_val   :", X_val.shape)
+    print("X_test  :", X_test.shape)
+
+    assert list(X_train.columns) == list(X_val.columns)
+    assert list(X_train.columns) == list(X_test.columns)
+
+    models = create_model()
 
     resultats = []
     for name, model in models.items():
