@@ -4,6 +4,8 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, H
 from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.neural_network import MLPRegressor
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 
 def create_models():

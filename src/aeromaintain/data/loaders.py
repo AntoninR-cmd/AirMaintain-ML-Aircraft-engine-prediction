@@ -1,7 +1,6 @@
 import pandas as pd
-from aeromaintain.config import DATASET_FOLDER, COLUMNS, WINDOWS, MODEL_FEATURE_COLUMNS
-from features.temporal import add_temporal_features
-
+from aeromaintain.config import DATASET_FOLDER, COLUMNS, WINDOWS
+from aeromaintain.features.temporal import MODEL_FEATURE_COLUMNS, add_temporal_features
 
 
 def load_train_data(folder = DATASET_FOLDER / "train"):

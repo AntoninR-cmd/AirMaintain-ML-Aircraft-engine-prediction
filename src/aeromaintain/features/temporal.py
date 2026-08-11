@@ -1,5 +1,5 @@
 import pandas as pd
-from aeromaintain.config import SENSOR_COLUMNS
+from aeromaintain.config import SENSOR_COLUMNS, WINDOWS, BASE_FEATURE_COLUMNS
 
 
 def get_temporal_feature_columns(windows):
@@ -95,3 +95,13 @@ def add_temporal_features(df, windows=(5, 20)):
         [df, temporal_df],
         axis=1
     )
+
+
+TEMPORAL_FEATURE_COLUMNS = get_temporal_feature_columns(
+    WINDOWS
+)
+
+MODEL_FEATURE_COLUMNS = (
+    BASE_FEATURE_COLUMNS
+    + TEMPORAL_FEATURE_COLUMNS
+)

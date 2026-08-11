@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "aeromaintain"
+version = "0.1.0"
+description = "Predictive maintenance and remaining useful life prediction for aircraft engines"
+requires-python = ">=3.10"
+
+dependencies = [
+    "pandas",
+    "numpy",
+    "scikit-learn",
+    "joblib"
+]
+
+
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
+
+[tool.setuptools.packages.find]
+where = ["src"]

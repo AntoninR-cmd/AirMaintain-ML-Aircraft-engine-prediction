@@ -1,5 +1,5 @@
 from sklearn.model_selection import train_test_split
-from aeromaintain.config import MODEL_FEATURE_COLUMNS
+from aeromaintain.features.temporal import MODEL_FEATURE_COLUMNS
 
 
 def split_validation_test_by_engine(test):
