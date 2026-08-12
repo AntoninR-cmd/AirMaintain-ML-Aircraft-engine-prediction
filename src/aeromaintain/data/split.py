@@ -2,16 +2,29 @@ from sklearn.model_selection import train_test_split
 from aeromaintain.features.temporal import MODEL_FEATURE_COLUMNS
 
 
-def split_validation_test_by_engine(test):
+def split_egine_key(
+    test,
+    test_size = 0.5,
+    random_state = 42
+):
     moteurs = test[
         ["FD", "IdMoteur"]
     ].drop_duplicates()
 
     moteurs_test, moteurs_validation = train_test_split(
         moteurs,
-        test_size=0.5,
-        random_state=42,
+        test_size=test_size,
+        random_state=random_state,
         stratify=moteurs["FD"]
+    )
+
+    return moteurs_test, moteurs_validation
+    
+def split_validation_test_by_engine(test, test_size=0.5, random_state=42):
+    moteurs_test, moteurs_validation = split_egine_key(
+        test, 
+        test_size,
+        random_state
     )
 
     test_final = test.merge(

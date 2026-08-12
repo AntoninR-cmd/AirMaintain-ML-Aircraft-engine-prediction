@@ -2,6 +2,8 @@ pandas
 numpy
 scikit-learn
 joblib
+fastapi[standard]
 
 [dev]
 pytest
+httpx

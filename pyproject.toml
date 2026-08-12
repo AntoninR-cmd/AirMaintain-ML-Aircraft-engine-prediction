@@ -13,15 +13,20 @@ dependencies = [
     "pandas",
     "numpy",
     "scikit-learn",
-    "joblib"
+    "joblib",
+    "fastapi[standard]"
 ]
 
 
 [project.optional-dependencies]
 dev = [
-    "pytest"
+    "pytest",
+    "httpx"
 ]
 
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.fastapi]
+entrypoint = "aeromaintain.api.main:app"
