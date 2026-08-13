@@ -12,6 +12,6 @@ __pycache__/
 # Résultats générés
 dataset/results/models/
 dataset/results/predictions/
-models/
-predictions/
-results/
+/models/
+/predictions/
+/results/
