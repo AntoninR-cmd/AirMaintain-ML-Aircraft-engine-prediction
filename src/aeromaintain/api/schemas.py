@@ -1,7 +1,8 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
 
 class SensorReading(BaseModel):
-    cycle: int
+    cycle: int = Field(gt=0)
 
     parameter_ope1: float
     parameter_ope2: float
@@ -32,14 +33,14 @@ class SensorReading(BaseModel):
 
 class PredictionRequest(BaseModel):
     fd: str
-    engine_id: int
-    history: list[SensorReading]
+    engine_id: int = Field(gt=0)
+    history: list[SensorReading] = Field(min_length=1)
 
 
 class PredictionResponse(BaseModel):
     fd: str
-    engine_id: int
-    cycle: int
+    engine_id: int = Field(gt=0)
+    cycle: int = Field(gt=0)
     rul: float
     q10: float
     q50: float
