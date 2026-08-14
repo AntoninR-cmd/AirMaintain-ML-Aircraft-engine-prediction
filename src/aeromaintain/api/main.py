@@ -1,10 +1,14 @@
 from fastapi import FastAPI, Request
 from aeromaintain.api.schemas import (
     PredictionRequest,
-    PredictionResponse
+    PredictionResponse,
+    ModelInfoResponse
 )
 from aeromaintain.api.converters import request_to_dataframe
-from aeromaintain.features.temporal import add_temporal_features
+from aeromaintain.features.temporal import (
+    add_temporal_features,
+    MODEL_FEATURE_COLUMNS
+)
 from aeromaintain.config import WINDOWS
 from contextlib import asynccontextmanager
 from aeromaintain.inference.predictor import (
@@ -69,4 +73,22 @@ def predict(request_data: PredictionRequest,
         "q10": float(prediction["q10"]),
         "q50": float(prediction["q50"]),
         "q90": float(prediction["q90"])
+    }
+
+
+@app.get(
+    "/model/info",
+    response_model=ModelInfoResponse
+)
+def model_info(request: Request):
+    models = request.app.state.models
+
+    return {
+        "loaded": True,
+        "rul_model": type(models["rul"]).__name__,
+        "q10_model": type(models["q10"]).__name__,
+        "q50_model": type(models["q50"]).__name__,
+        "q90_model": type(models["q90"]).__name__,
+        "feature_count": len(MODEL_FEATURE_COLUMNS),
+        "windows": list(WINDOWS)
     }

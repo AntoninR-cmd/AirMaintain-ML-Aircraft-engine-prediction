@@ -8,6 +8,8 @@ Requires-Dist: numpy
 Requires-Dist: scikit-learn
 Requires-Dist: joblib
 Requires-Dist: fastapi[standard]
+Requires-Dist: streamlit
+Requires-Dist: requests
 Provides-Extra: dev
 Requires-Dist: pytest; extra == "dev"
 Requires-Dist: httpx; extra == "dev"

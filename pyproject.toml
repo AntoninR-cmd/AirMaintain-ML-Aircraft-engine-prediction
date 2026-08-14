@@ -14,7 +14,9 @@ dependencies = [
     "numpy",
     "scikit-learn",
     "joblib",
-    "fastapi[standard]"
+    "fastapi[standard]",
+    "streamlit",
+    "requests"
 ]
 
 

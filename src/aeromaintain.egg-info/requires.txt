@@ -3,6 +3,8 @@ numpy
 scikit-learn
 joblib
 fastapi[standard]
+streamlit
+requests
 
 [dev]
 pytest

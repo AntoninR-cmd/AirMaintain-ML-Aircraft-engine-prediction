@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 
 from aeromaintain.api.main import app
+from aeromaintain.config import WINDOWS
+from aeromaintain.features.temporal import MODEL_FEATURE_COLUMNS
 import numpy as np
 
 client = TestClient(app)
@@ -145,3 +147,26 @@ def test_missing_sensor():
     )
 
     assert response.status_code == 422
+
+
+def test_model_info():
+    app.state.models = {
+        "rul": FakeModel(30),
+        "q10": FakeModel(20),
+        "q50": FakeModel(28),
+        "q90": FakeModel(40),
+    }
+
+    response = client.get("/model/info")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["loaded"] is True
+    assert data["rul_model"] == "FakeModel"
+    assert data["q10_model"] == "FakeModel"
+    assert data["q50_model"] == "FakeModel"
+    assert data["q90_model"] == "FakeModel"
+    assert data["windows"] == [5, 20]
+    assert data["feature_count"] == len(MODEL_FEATURE_COLUMNS)

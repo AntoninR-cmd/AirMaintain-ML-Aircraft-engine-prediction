@@ -1,0 +1,10 @@
+services:
+  api:
+    build: .
+    image: aeromaintain
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - ./dataset/results/models:/app/dataset/results/models:ro

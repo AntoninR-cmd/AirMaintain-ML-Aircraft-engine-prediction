@@ -45,3 +45,13 @@ class PredictionResponse(BaseModel):
     q10: float
     q50: float
     q90: float
+
+
+class ModelInfoResponse(BaseModel):
+    loaded: bool
+    rul_model: str
+    q10_model: str
+    q50_model: str
+    q90_model: str
+    feature_count: int
+    windows: list[int]

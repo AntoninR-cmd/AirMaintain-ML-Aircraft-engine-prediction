@@ -8,6 +8,7 @@ src/aeromaintain.egg-info/dependency_links.txt
 src/aeromaintain.egg-info/requires.txt
 src/aeromaintain.egg-info/top_level.txt
 src/aeromaintain/api/__init__.py
+src/aeromaintain/api/converters.py
 src/aeromaintain/api/main.py
 src/aeromaintain/api/schemas.py
 src/aeromaintain/data/loaders.py
@@ -18,6 +19,8 @@ src/aeromaintain/models/evaluation.py
 src/aeromaintain/models/quantiles.py
 src/aeromaintain/models/registry.py
 src/aeromaintain/models/training.py
+tests/test_api.py
+tests/test_converters.py
 tests/test_predictor.py
 tests/test_quantiles.py
 tests/test_split.py
