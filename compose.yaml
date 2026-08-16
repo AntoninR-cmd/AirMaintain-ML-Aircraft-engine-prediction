@@ -8,3 +8,30 @@ services:
 
     volumes:
       - ./dataset/results/models:/app/dataset/results/models:ro
+    
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  dashboard:
+    build: ./dashboard
+    image: dashboard
+
+    ports:
+      - "8501:8501"
+
+    environment:
+      - API_URL=http://api:8000
+
+    depends_on:
+      - api:
+        condition: service_healthy

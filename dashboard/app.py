@@ -1,8 +1,22 @@
 import streamlit as st
 import requests
 import pandas as pd
-from aeromaintain.config import COLUMNS
+import os
 
+
+SENSOR_COLUMNS = [
+    f"MesureCapteur{i:02d}"
+    for i in range(1, 22)
+]
+
+COLUMNS = [
+    "IdMoteur",
+    "Cycle",
+    "ParameterOpe1",
+    "ParameterOpe2",
+    "ParameterOpe3",
+    *SENSOR_COLUMNS
+]
 
 def dataframe_to_payload(
     df,
@@ -35,95 +49,107 @@ def dataframe_to_payload(
     return payload
 
 
-API_URL = "http://localhost:8000"
+API_URL = os.getenv(
+    "API_URL",
+    "http://localhost:8000"
+)
 
-st.title("AeroMaintain")
+st.set_page_config(
+    page_title="AeroMaintain",
+    page_icon="✈️",
+    layout="wide",
+)
 
-if st.button("Testez l'API"):
+st.title("✈️ AeroMaintain")
+st.caption(
+    "Prédiction de durée de vie restante "
+    "pour moteurs aéronautiques"
+)
+
+def get_api_health():
     try:
         response = requests.get(
-            f"{API_URL}/health"
+            f"{API_URL}/health",
+            timeout=3,
         )
+        return response.status_code == 200
 
-        if response.status_code == 200:
-            st.success("L'API est lancée")
-        else:
-            st.error("L'API a échoué")
     except requests.RequestException:
-        st.error("Impossible de joindre l'API")
+        return False
 
-st.header("Modèle")
 
-if st.button("Informations modèle"):
+@st.cache_data(ttl=30)
+def get_model_info():
     try:
         response = requests.get(
             f"{API_URL}/model/info",
-            timeout=5
+            timeout=5,
         )
 
         if response.status_code == 200:
-            data = response.json()
-
-            st.success("Informations du modèle récupérées")
-
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                st.metric(
-                    "Modèle RUL",
-                    data["rul_model"]
-                )
-
-            with col2:
-                st.metric(
-                    "Features",
-                    data["feature_count"]
-                )
-
-            with col3:
-                st.metric(
-                    "Fenêtres",
-                    ", ".join(
-                        str(x)
-                        for x in data["windows"]
-                    )
-                )
-
-            col4, col5, col6 = st.columns(3)
-
-            with col4:
-                st.metric(
-                    "Quantile 10 %",
-                    data["q10_model"]
-                )
-
-            with col5:
-                st.metric(
-                    "Quantile 50 %",
-                    data["q50_model"]
-                )
-
-            with col6:
-                st.metric(
-                    "Quantile 90 %",
-                    data["q90_model"]
-                )
-
-        else:
-            st.error(
-                f"Erreur API : {response.status_code}"
-            )
+            return response.json()
 
     except requests.RequestException:
-        st.error(
-            "Impossible de joindre l'API"
+        pass
+
+    return None
+
+if get_api_health():
+    st.success("API connectée")
+else:
+    st.error(
+        "API indisponible. Vérifiez les conteneurs Docker."
+    )
+
+model_info = get_model_info()
+
+if model_info is not None:
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric(
+            "Modèle RUL",
+            model_info["rul_model"],
         )
 
-st.header("Prediction RUL")
+    with col2:
+        st.metric(
+            "Features",
+            model_info["feature_count"],
+        )
+
+    with col3:
+        st.metric(
+            "Fenêtres temporelles",
+            ", ".join(
+                str(x)
+                for x in model_info["windows"]
+            ),
+        )
+
+    with st.expander(
+        "Modèles de quantiles"
+    ):
+        st.write(
+            f"**q10 :** {model_info['q10_model']}"
+        )
+        st.write(
+            f"**q50 :** {model_info['q50_model']}"
+        )
+        st.write(
+            f"**q90 :** {model_info['q90_model']}"
+        )
+
+st.divider()
+st.header("Analyse d'un moteur")
 
 uploaded_file = st.file_uploader(
-    "Importer l'historique d'un moteur",
-    type=["txt"]
+    "Historique C-MAPSS",
+    type=["txt"],
+    help=(
+        "Sélectionnez un fichier contenant "
+        "l'historique des cycles moteur."
+    ),
 )
 if uploaded_file is not None:
     df = pd.read_csv(
@@ -133,25 +159,38 @@ if uploaded_file is not None:
         names=COLUMNS
     )
 
-    st.dataframe(df.head())
+    with st.expander("Aperçu des données"):
+        st.dataframe(
+            df.head(10),
+            use_container_width=True,
+        )
 
     engine_ids = df["IdMoteur"].unique()
 
-    selected_engine = st.selectbox(
-        "Moteur",
-        engine_ids
-    )
+    col1, col2 = st.columns(2)
+
+    with col1:
+        selected_engine = st.selectbox(
+            "Moteur",
+            engine_ids,
+        )
+
+    with col2:
+        fd = st.selectbox(
+            "Dataset",
+            ["001", "002", "003", "004"],
+            format_func=lambda x: f"FD{x}",
+        )
 
     engine_df = df[
         df["IdMoteur"] == selected_engine
     ].copy()
 
-    fd = st.selectbox(
-        "Dataset FD",
-        ["001", "002", "003", "004"]
-    )
-
-    if st.button("Prédire la RUL"):
+    if st.button(
+        "Analyser le moteur",
+        type="primary",
+        use_container_width=True,
+    ):
         payload = dataframe_to_payload(
             engine_df,
             fd,
@@ -159,11 +198,14 @@ if uploaded_file is not None:
         )
 
         try:
-            response = requests.post(
-                f"{API_URL}/predict",
-                json=payload,
-                timeout=30
-            )
+            with st.spinner(
+                "Analyse du moteur en cours..."
+            ):
+                response = requests.post(
+                    f"{API_URL}/predict",
+                    json=payload,
+                    timeout=30
+                )
 
             if response.status_code == 200:
                 st.success("Prédiction réussie")
@@ -174,26 +216,26 @@ if uploaded_file is not None:
 
                 with col1:
                     st.metric(
-                        "RUL prédite",
-                        prediction["rul"]
+                        "RUL modèle",
+                        f"{prediction['rul']:.1f} cycles",
                     )
 
                 with col2:
                     st.metric(
-                        "médiane",
-                        prediction["q50"]
+                        "Médiane q50",
+                        f"{prediction['q50']:.1f} cycles",
                     )
 
                 with col3:
                     st.metric(
-                        "Borne basse",
-                        prediction["q10"]
+                        "Quantile q10",
+                        f"{prediction['q10']:.1f} cycles",
                     )
 
                 with col4:
                     st.metric(
-                        "Borne haute",
-                        prediction["q90"]
+                        "Quantile q90",
+                        f"{prediction['q90']:.1f} cycles",
                     )
 
                 st.info(
@@ -207,6 +249,9 @@ if uploaded_file is not None:
                 )
             else:
                 st.error(f"Erreur API {response.status_code}")
-                st.code(response.text)
+                with st.expander(
+                    "Détails techniques"
+                ):
+                    st.code(response.text)
         except requests.RequestException:
             st.error("Impossible de joindre l'API")
