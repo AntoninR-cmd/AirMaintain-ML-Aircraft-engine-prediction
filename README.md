@@ -189,42 +189,6 @@ The median estimate is 27 remaining cycles, while the q10-q90 interval indicates
 
 The quantile models are evaluated using several diagnostics.
 
-## Results
-
-The final selected model was evaluated on a held-out test set that was not used during model selection.
-
-### RUL Prediction
-
-| Metric | Test result |
-|---|---:|
-| RMSE | 54.97 cycles |
-| MAE | 40.32 cycles |
-| R² | 0.519 |
-
-The model explains approximately 52% of the variance in Remaining Useful Life on the final test set.
-
-The MAE indicates an average absolute prediction error of approximately 40 cycles.
-
-### Quantile Prediction
-
-| Metric | Target | Test result |
-|---|---:|---:|
-| q10-q90 coverage | 80% | 79.08% |
-| Mean interval width | - | 139.11 cycles |
-| q10 calibration | 10% | 7.95% |
-| q50 calibration | 50% | 42.09% |
-| q90 calibration | 90% | 87.02% |
-| Quantile crossing rate | 0% | 0.10% |
-
-The q10-q90 interval reaches a coverage of 79.08%, very close to its theoretical 80% target.
-
-Quantile crossing is rare, occurring in approximately 0.10% of predictions.
-
-The median quantile q50 has a mean signed error of:
-
-```text
--20.97 cycles
-
 ### Coverage
 
 Coverage measures the proportion of actual RUL values located between q10 and q90.
@@ -286,6 +250,98 @@ RUL > 60
 ```
 
 This makes it possible to determine whether uncertainty estimation behaves differently for healthy and highly degraded engines.
+
+## Results
+
+The final selected model was evaluated on a held-out test set that was not used during model selection.
+
+### Model Selection
+
+Validation results of the candidate models, sorted by RMSE:
+
+| Model | RMSE | MAE | R² |
+|---|---:|---:|---:|
+| **Random Forest** | **59.89** | **42.72** | **0.472** |
+| Multi-Layer Perceptron | 60.52 | 43.68 | 0.460 |
+| Histogram Gradient Boosting | 60.68 | 43.76 | 0.457 |
+| Linear Regression | 63.06 | 46.14 | 0.414 |
+| Ridge Regression | 63.17 | 46.21 | 0.412 |
+| Lasso Regression | 63.57 | 46.55 | 0.405 |
+| Gradient Boosting | 65.43 | 46.42 | 0.369 |
+| Decision Tree | 68.49 | 48.95 | 0.309 |
+| Support Vector Regression | 69.36 | 48.01 | 0.291 |
+| K-Nearest Neighbors | 75.55 | 52.85 | 0.159 |
+
+The Random Forest achieves the lowest validation RMSE and is selected as the final model.
+
+### RUL Prediction
+
+| Metric | Random Forest | Dummy baseline |
+|---|---:|---:|
+| RMSE | 54.95 cycles | 83.79 cycles |
+| MAE | 40.31 cycles | 63.26 cycles |
+| R² | 0.519 | -0.117 |
+
+The model explains approximately 52% of the variance in Remaining Useful Life on the final test set.
+
+The MAE indicates an average absolute prediction error of approximately 40 cycles.
+
+Compared with a `DummyRegressor` that always predicts the mean training RUL, the Random Forest reduces RMSE by approximately 34% and MAE by approximately 36%.
+
+### Prediction Bias
+
+| Metric | Test result |
+|---|---:|
+| Mean signed error | -4.29 cycles |
+| Median error | +1.21 cycles |
+| Overestimation rate | 51.26% |
+| Underestimation rate | 48.74% |
+| Average overestimation | +35.13 cycles |
+| Average underestimation | -45.75 cycles |
+
+Overestimations and underestimations are almost equally frequent. Underestimations are larger on average, which results in a slightly negative mean signed error.
+
+### Quantile Prediction
+
+| Metric | Target | Test result |
+|---|---:|---:|
+| q10-q90 coverage | 80% | 79.08% |
+| Mean interval width | - | 139.11 cycles |
+| q10 calibration | 10% | 7.95% |
+| q50 calibration | 50% | 42.09% |
+| q90 calibration | 90% | 87.02% |
+| Quantile crossing rate | 0% | 0.10% |
+| Pinball loss q10 | - | 8.306 |
+| Pinball loss q50 | - | 23.152 |
+| Pinball loss q90 | - | 12.410 |
+
+The q10-q90 interval reaches a coverage of 79.08%, very close to its theoretical 80% target.
+
+Quantile crossing is rare, occurring in approximately 0.10% of predictions.
+
+The median quantile q50 has a mean signed error of:
+
+```text
+-20.97 cycles
+```
+
+It underestimates the RUL in 57.91% of cases.
+
+### Calibration by Wear Level
+
+| RUL range | Samples | q10-q90 coverage | Mean width | q50 bias |
+|---|---:|---:|---:|---:|
+| RUL <= 10 | 88 | 48.86% | 85.64 cycles | +29.36 cycles |
+| 10 < RUL <= 20 | 589 | 61.63% | 84.70 cycles | +25.77 cycles |
+| 20 < RUL <= 30 | 808 | 63.49% | 82.25 cycles | +23.95 cycles |
+| 30 < RUL <= 60 | 3367 | 73.60% | 95.26 cycles | +25.33 cycles |
+| RUL > 60 | 48148 | 79.99% | 143.90 cycles | -25.63 cycles |
+
+The overall calibration is driven by healthy engines, which represent about 91% of the test set.
+
+For degraded engines (RUL <= 60), q50 overestimates the remaining lifetime by about 24 to 29 cycles and the interval coverage drops below its 80% target, down to 48.86% for engines closest to failure.
+
+This is the most critical situation in predictive maintenance, since overestimating the remaining lifetime of a degraded engine may delay a necessary intervention. Improving predictions for highly degraded engines is therefore the main limitation to address in future versions.
 
 ## Architecture
 
@@ -644,6 +700,7 @@ Training and evaluation produce several local artifacts, including:
 dataset/results/models/
 dataset/results/predictions/
 dataset/results/resultats_validation.csv
+dataset/results/resultats_test.csv
 dataset/results/resultats_quantiles_test.csv
 ```
 
@@ -685,6 +742,7 @@ Containerized deployment
 
 Future versions could explore:
 
+* improving predictions and calibration for highly degraded engines
 * hyperparameter optimization
 * more advanced time-series models
 * recurrent neural networks or Transformers

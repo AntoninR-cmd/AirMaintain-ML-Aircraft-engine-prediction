@@ -179,28 +179,21 @@ def main():
         X_test
     )
 
-    print(
-        "Dummy RMSE :",
-        root_mean_squared_error(
-            y_test,
-            y_pred_dummy
-        )
-    )
+    resultat_dummy = {
+        "Modèle": "Dummy",
+        "RMSE": root_mean_squared_error(y_test, y_pred_dummy),
+        "MAE": mean_absolute_error(y_test, y_pred_dummy),
+        "R2": r2_score(y_test, y_pred_dummy)
+    }
 
-    print(
-        "Dummy MAE :",
-        mean_absolute_error(
-            y_test,
-            y_pred_dummy
-        )
-    )
+    print(resultat_dummy)
 
-    print(
-        "Dummy R2 :",
-        r2_score(
-            y_test,
-            y_pred_dummy
-        )
+    #Sauvegarde des résultats test du meilleur modèle et du dummy
+    pd.DataFrame(
+        [resultat_test, resultat_dummy]
+    ).to_csv(
+        RESULTS_FOLDER / "resultats_test.csv",
+        index=False
     )
 
     print(analyse_bias(best_name))

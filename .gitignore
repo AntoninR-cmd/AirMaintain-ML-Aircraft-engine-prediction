@@ -15,3 +15,5 @@ dataset/results/predictions/
 /models/
 /predictions/
 /results/
+# Métadonnées de packaging
+*.egg-info/
